@@ -2,17 +2,24 @@ namespace yournamespace
 {
    internal static class JaegerHelper
 {
-    public static Activity StartLogActivity(ActivitySource activitySource, HttpRequestHeaders headers, [CallerMemberName] string methodName = "")
+    public static Activity StartLogActivity(ActivitySource activitySource, HttpRequestHeaders headers,
+     [CallerMemberName] string methodName = "", bool isRoot = false)
+{
+    if (headers != null && isRoot)
     {
-
-        var activity = activitySource.StartActivity(methodName);
-        if (headers != null)
-        {
-            PropagationContext ctx = Propagators.DefaultTextMapPropagator.Extract(default(PropagationContext), headers, extract);
-            activity.SetParentId(ctx.ActivityContext.TraceId, ctx.ActivityContext.SpanId, ctx.ActivityContext.TraceFlags);
-        }
+        PropagationContext parentContext = Propagators.DefaultTextMapPropagator.Extract(default(PropagationContext), headers, extract);
+        Baggage.Current = parentContext.Baggage;
+        var activity = activitySource.StartActivity(methodName, ActivityKind.Internal,
+            parentContext.ActivityContext);
+        activity.TraceStateString = parentContext.ActivityContext.TraceState;
         return activity;
+
     }
+    else
+    {
+        return activitySource.StartActivity(methodName);
+    }
+}
     private static IEnumerable<string> extract(IEnumerable<KeyValuePair<string, IEnumerable<string>>> arg1, string arg2)
     {
         var rs = arg1.FirstOrDefault(p => p.Key == arg2);
